@@ -1,0 +1,98 @@
+name: CI/CD
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install --upgrade pip
+          .\.venv\Scripts\python.exe -m pip install -e ".[dev,build]"
+
+      - name: 运行测试
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pytest -q
+
+      - name: 构建 Windows EXE
+        shell: pwsh
+        run: .\scripts\build.ps1 -OneFile -Name SendEmailStudio
+
+      - name: 生成校验和
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          $assetName = "sendemail-studio_${version}_windows_amd64.exe"
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          Move-Item "dist\SendEmailStudio.exe" "release-assets\$assetName"
+          (Get-FileHash "release-assets\$assetName" -Algorithm SHA256).Hash.ToLower() + "  " + $assetName | Set-Content -NoNewline "release-assets\SHA256SUMS"
+
+      - name: 生成发布说明
+        id: changelog
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "$PREV_TAG..HEAD" --pretty=format:"- %s (%h)" --no-merges)
+          else
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges -10)
+          fi
+          if [[ "$VERSION" =~ (alpha|beta|rc|pre) ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+
+          cat > release_notes.md << EOF
+          ## 🎉 sendemail-studio v${VERSION} 发布
+
+          ### 📋 构建信息
+          - **版本**: v${VERSION}
+          - **Commit**: ${GITHUB_SHA:0:7}
+          - **构建时间**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          ### 📝 更新内容
+          ${COMMITS}
+
+          ### 📦 二进制下载
+          - Windows AMD64: \`sendemail-studio_${VERSION}_windows_amd64.exe\`
+
+          ### 🔐 校验和
+          下载 \`SHA256SUMS\` 和对应产物后，在 PowerShell 中执行 \`Get-FileHash .\\sendemail-studio_${VERSION}_windows_amd64.exe -Algorithm SHA256\` 验证文件完整性。
+
+          ### 📚 详细更新日志
+          完整的功能说明请查看：[verchanglog/v${VERSION}.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/verchanglog/v${VERSION}.md)。
+          EOF
+
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ steps.changelog.outputs.is_prerelease == 'true' }}
+          generate_release_notes: false
+          files: |
+            release-assets/*.exe
+            release-assets/SHA256SUMS
