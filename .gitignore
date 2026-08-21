@@ -1,0 +1,34 @@
+# Python 字节码和工具缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# 本地虚拟环境和打包元数据
+.venv/
+.venv.backup-*/
+venv/
+*.egg-info/
+
+# PyInstaller 构建产物
+build/
+dist/
+*.spec
+*.exe
+
+# 本地协作规范和项目规划文档
+AGENTS.md
+design-qa.md
+findings.md
+progress.md
+task_plan.md
+开发需求.md
+work/*
+
+# 本地导出文件和中断导出产物
+*.partial.xlsx
+smoke.xlsx

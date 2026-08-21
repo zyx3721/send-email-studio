@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "send-email-studio"
+version = "0.1.0"
+description = "批量发送邮件桌面工具"
+requires-python = ">=3.9"
+dependencies = ["PySide6-Essentials>=6.5,<7", "pandas>=2.0,<3", "openpyxl>=3.1,<4", "xlrd>=2.0,<3", "python-docx>=1.1,<2", "qtawesome>=1.4,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+build = ["pyinstaller>=6,<7"]
+
+[project.scripts]
+send-email-studio = "send_email_studio.app:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
