@@ -1,14 +1,15 @@
 import mimetypes
 import smtplib
+from email import encoders
 from email.header import Header
 from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email import encoders
 from pathlib import Path
 from typing import Callable
 
-from ..domain.models import MailSettings, RecipientBatch
+from ..domain.models import InlineImage, MailSettings, RecipientBatch
 
 
 def render_template(template: str, values: dict[str, object]) -> str:
@@ -41,12 +42,31 @@ def _attachment(path: Path) -> MIMEBase:
     return part
 
 
+def _inline_image(image: InlineImage) -> MIMEBase:
+    maintype, subtype = (image.mime_type or "application/octet-stream").split("/", 1)
+    if maintype == "image":
+        part: MIMEBase = MIMEImage(image.data, _subtype=subtype)
+    else:
+        part = MIMEBase(maintype, subtype)
+        part.set_payload(image.data)
+        encoders.encode_base64(part)
+    part.add_header("Content-ID", f"<{image.content_id}>")
+    part.add_header("Content-Disposition", "inline", filename=Header(image.filename, "utf-8").encode())
+    return part
+
+
 class SmtpMailSender:
     def __init__(self, settings: MailSettings, log: Callable[[str], None] | None = None):
         self.settings = settings
         self.log = log or (lambda _: None)
 
-    def send(self, batches: list[RecipientBatch], template: str | None = None, progress: Callable[[int, int, str], None] | None = None) -> None:
+    def send(
+        self,
+        batches: list[RecipientBatch],
+        template: str | None = None,
+        progress: Callable[[int, int, str], None] | None = None,
+        inline_images: tuple[InlineImage, ...] = (),
+    ) -> None:
         if not batches:
             raise ValueError("Excel 中没有可发送的收件人")
         total = len(batches)
@@ -65,7 +85,14 @@ class SmtpMailSender:
                 if batch.cc:
                     message["Cc"] = ", ".join(batch.cc)
                 message["Subject"] = subject_for_batch(batch, self.settings.subject)
-                message.attach(MIMEText(body, "html", "utf-8"))
+                if inline_images:
+                    related = MIMEMultipart("related")
+                    related.attach(MIMEText(body, "html", "utf-8"))
+                    for image in inline_images:
+                        related.attach(_inline_image(image))
+                    message.attach(related)
+                else:
+                    message.attach(MIMEText(body, "html", "utf-8"))
                 for path in batch.attachments:
                     message.attach(_attachment(path))
                 server.send_message(message, from_addr=self.settings.smtp_user, to_addrs=list(batch.to) + list(batch.cc))

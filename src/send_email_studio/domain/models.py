@@ -4,6 +4,18 @@ from typing import Any, Mapping
 
 
 @dataclass(frozen=True)
+class InlineImage:
+    """邮件正文中通过 Content-ID 引用的内嵌图片。"""
+
+    content_id: str
+    data: bytes
+    mime_type: str
+    filename: str = "image"
+    width_px: int | None = None
+    height_px: int | None = None
+
+
+@dataclass(frozen=True)
 class RecipientBatch:
     """一行 Excel 数据展开后的邮件收件人集合。"""
 
@@ -24,4 +36,3 @@ class MailSettings:
     content_html: str = ""
     template_path: Path | None = None
     recipient_mode: str = "individual"  # individual 或 grouped
-
