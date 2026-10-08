@@ -56,3 +56,23 @@ send-email-studio
 ```powershell
 .\scripts\build.ps1 -OneFile
 ```
+
+## 清理可再生产物
+
+`scripts/clean.ps1`（`scripts/clean.bat` 是双击入口）用于清理缓存与打包中间文件。
+**默认是预演模式，只列出将删除的内容，不实际删除**：
+
+```powershell
+.\scripts\clean.ps1                     # 预演
+.\scripts\clean.ps1 -Execute            # 真正执行
+.\scripts\clean.ps1 -Execute -KeepWork  # 连同 work\ 目录一起保留
+```
+
+双击 `scripts\clean.bat` 等价于预演；`clean.bat execute` 才是真正删除，
+`clean.bat execute keep` 则保留 `work\` 目录。
+
+清理项都是可再生的：`build/`、根目录 `*.spec`、`.pytest_cache/`、各处 `__pycache__/`、
+`src/*.egg-info/`、`.coverage`、`smoke.xlsx`、`*.partial.*` 与 `work/` 日志。
+**始终保留**：`src/`、`tests/`、`scripts/`、`assets/`、`.github/`、`verchanglog/`、
+`dist/`、`.venv/` 与所有文档。脚本通过 `scripts/.project-root` 标记文件确认项目根目录，
+标记不存在就拒绝执行。
