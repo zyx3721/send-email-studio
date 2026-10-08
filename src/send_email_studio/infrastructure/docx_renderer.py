@@ -64,12 +64,32 @@ def _render_block(block: Paragraph | Table, inline_images: list[InlineImage]) ->
             style.append(f"line-height:{fmt.line_spacing:.2f}")
         elif hasattr(fmt.line_spacing, "pt"):
             style.append(f"line-height:{fmt.line_spacing.pt:.2f}pt")
-    content = "".join(_render_run(run, block, inline_images) for run in block.runs) or "&nbsp;"
+    content = "".join(_render_run(group, block, inline_images) for group in _run_groups(block)) or "&nbsp;"
     style_text = " ;".join(style)
     return f'<p style="{style_text}">{content}</p>'
 
 
-def _render_run(run, paragraph: Paragraph, inline_images: list[InlineImage]) -> str:
+def _run_groups(paragraph: Paragraph) -> list[list]:
+    """按“{”是否闭合把 run 分组，避免占位符被切进多个 span。"""
+    groups: list[list] = []
+    pending: list = []
+    for run in paragraph.runs:
+        pending.append(run)
+        if _has_unclosed_brace("".join(item.text for item in pending)):
+            continue
+        groups.append(pending)
+        pending = []
+    if pending:
+        groups.append(pending)
+    return groups
+
+
+def _has_unclosed_brace(text: str) -> bool:
+    return text.rfind("{") > text.rfind("}")
+
+
+def _render_run(runs: list, paragraph: Paragraph, inline_images: list[InlineImage]) -> str:
+    run = runs[0]
     styles = []
     font_name = _effective_font_name(run, paragraph)
     if font_name:
@@ -90,9 +110,9 @@ def _render_run(run, paragraph: Paragraph, inline_images: list[InlineImage]) -> 
         decorations.append("line-through")
     if decorations:
         styles.append(f"text-decoration:{' '.join(decorations)}")
-    text = escape(run.text).replace(" ", "&nbsp;").replace("\n", "<br>")
-    objects_html = "".join(_render_image(run, inline_images))
-    objects_html += "".join(_render_horizontal_shapes(run))
+    text = escape("".join(item.text for item in runs)).replace(" ", "&nbsp;").replace("\n", "<br>")
+    objects_html = "".join(html for item in runs for html in _render_image(item, inline_images))
+    objects_html += "".join(html for item in runs for html in _render_horizontal_shapes(item))
     style_text = " ;".join(styles)
     return f'<span style="{style_text}">{text}{objects_html}</span>'
 

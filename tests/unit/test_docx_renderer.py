@@ -29,6 +29,40 @@ def test_docx_renderer_keeps_table_and_basic_formatting(tmp_path):
     assert "<table" in html and "姓名" in html and "font-weight:700" in html
 
 
+def test_docx_renderer_joins_placeholder_split_across_runs(tmp_path):
+    """跨 run 的占位符必须拼回完整的 {列名}。
+
+    Word/WPS 会把一段文字切成多个 run（改字体、手工编辑都会触发），
+    逐 run 包 span 会截断占位符，替换时抛 Invalid format specifier。
+    """
+    path = tmp_path / "split.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    paragraph.add_run("{区域-A.10平台")
+    second = paragraph.add_run("许可}")
+    second.font.size = Pt(10.5)
+    document.save(path)
+
+    html = render_docx(path)
+    assert "{区域-A.10平台许可}" in html
+    assert "{区域-A.10平台</span>" not in html
+
+
+def test_docx_renderer_keeps_separate_runs_when_no_placeholder(tmp_path):
+    """没有跨 run 占位符时，各 run 仍各自保留样式，不被合并。"""
+    path = tmp_path / "runs.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    paragraph.add_run("普通")
+    bold_run = paragraph.add_run("加粗")
+    bold_run.bold = True
+    document.save(path)
+
+    html = render_docx(path)
+    assert html.count("<span") == 2
+    assert "font-weight:700" in html
+
+
 def test_docx_renderer_extracts_pasted_image_as_inline_cid(tmp_path):
     path = tmp_path / "image-template.docx"
     document = Document()

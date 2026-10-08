@@ -1,5 +1,6 @@
 import mimetypes
 import smtplib
+import string
 from email import encoders
 from email.header import Header
 from email.mime.base import MIMEBase
@@ -13,7 +14,21 @@ from ..domain.models import InlineImage, MailSettings, RecipientBatch
 
 
 def render_template(template: str, values: dict[str, object]) -> str:
-    return template.format_map(_SafeValues(values))
+    """按整段列名替换 {列名}，避免列名里的点被 format 当成属性访问。"""
+    return _ColumnFormatter(values).vformat(template, (), {})
+
+
+class _ColumnFormatter(string.Formatter):
+    """整段匹配字段名；未提供的列名原样保留。"""
+
+    def __init__(self, values: dict[str, object]) -> None:
+        super().__init__()
+        self._values = values
+
+    def get_field(self, field_name, args, kwargs):
+        if field_name in self._values:
+            return self._values[field_name], field_name
+        return "{" + field_name + "}", field_name
 
 
 def subject_for_batch(batch: RecipientBatch, fallback: str) -> str:
@@ -23,11 +38,6 @@ def subject_for_batch(batch: RecipientBatch, fallback: str) -> str:
         value = batch.values.get(subject_columns[0], "")
         return "" if value is None else str(value).strip()
     return fallback
-
-
-class _SafeValues(dict):
-    def __missing__(self, key: str) -> str:
-        return "{" + key + "}"
 
 
 def _attachment(path: Path) -> MIMEBase:
