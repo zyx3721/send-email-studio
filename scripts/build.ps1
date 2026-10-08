@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$OneFile,
     [string]$Name = "批量发送邮件工具"
 )

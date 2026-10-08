@@ -63,16 +63,18 @@ send-email-studio
 **默认是预演模式，只列出将删除的内容，不实际删除**：
 
 ```powershell
-.\scripts\clean.ps1                     # 预演
-.\scripts\clean.ps1 -Execute            # 真正执行
-.\scripts\clean.ps1 -Execute -KeepWork  # 连同 work\ 目录一起保留
+.\scripts\clean.ps1                        # 预演
+.\scripts\clean.ps1 -Execute               # 真正执行（保留 work\ 目录本身）
+.\scripts\clean.ps1 -Execute -IncludeWork  # 连 work\ 目录一起清空
 ```
 
 双击 `scripts\clean.bat` 等价于预演；`clean.bat execute` 才是真正删除，
-`clean.bat execute keep` 则保留 `work\` 目录。
+`clean.bat execute purge` 则连同 `work\` 目录一起清空。
 
 清理项都是可再生的：`build/`、根目录 `*.spec`、`.pytest_cache/`、各处 `__pycache__/`、
-`src/*.egg-info/`、`.coverage`、`smoke.xlsx`、`*.partial.*` 与 `work/` 日志。
+`src/*.egg-info/`、`.coverage`、`smoke.xlsx`、`*.partial.*`，以及 `work/` 下的
+`dsh-session-current.md`、`*.log` 与 `*.err`。
 **始终保留**：`src/`、`tests/`、`scripts/`、`assets/`、`.github/`、`verchanglog/`、
-`dist/`、`.venv/` 与所有文档。脚本通过 `scripts/.project-root` 标记文件确认项目根目录，
-标记不存在就拒绝执行。
+`dist/`、`.venv/`、`work/` 目录本身及其中的手写文件（本地验证脚本等）与所有文档。
+`work/` 未被 git 跟踪、删掉不可恢复，因此默认不删该目录；脚本通过
+`scripts/.project-root` 标记文件确认项目根目录，标记不存在就拒绝执行。

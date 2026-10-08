@@ -1,10 +1,14 @@
-<#
+﻿<#
 .SYNOPSIS
     清理「批量发送邮件工具」项目里可再生的目录与文件。
 
 .DESCRIPTION
     只删除**可以重新生成**的东西，源码、测试、脚本、assets、.github、verchanglog、
     dist 与 .venv 一律不动。
+
+    **默认保留**：work\ 目录本身及其中的手写文件（本地验证脚本、模板等）。work\ 未被
+    git 跟踪，删掉不可恢复，因此默认只在其中清理明确可再生的残留：会话导出中间文件、
+    *.log 与 *.err。确实要连 work\ 一起清空时，显式加 -IncludeWork。
 
     默认是「预演」模式：只列出将要删除的内容，不实际删除。
     确认无误后加 -Execute 真正执行。
@@ -17,8 +21,8 @@
 .PARAMETER Execute
     真正执行删除。不加此参数时仅预演。
 
-.PARAMETER KeepWork
-    保留 work\ 目录（本地验证脚本与临时产物，便于继续排查）。
+.PARAMETER IncludeWork
+    连同 work\ 目录本身一起清理（默认保留）。仅在确认其中的本地验证脚本不再需要时使用。
 
 .EXAMPLE
     .\scripts\clean.ps1
@@ -26,16 +30,16 @@
 
 .EXAMPLE
     .\scripts\clean.ps1 -Execute
-    真正执行清理。
+    真正执行清理，保留 work\ 目录本身。
 
 .EXAMPLE
-    .\scripts\clean.ps1 -Execute -KeepWork
-    清理但保留 work\ 目录。
+    .\scripts\clean.ps1 -Execute -IncludeWork
+    清理并连同 work\ 目录一起清空。
 #>
 [CmdletBinding()]
 param(
     [switch]$Execute,
-    [switch]$KeepWork
+    [switch]$IncludeWork
 )
 
 $ErrorActionPreference = "Stop"
@@ -115,13 +119,23 @@ Get-ChildItem -LiteralPath (Join-Path $projectRoot "work") -File -ErrorAction Si
         })
     }
 
-# ④ work\ 目录本身（本地验证脚本与产物）
-if (-not $KeepWork) {
-    Add-Target "work" "目录" "本地验证脚本与临时产物，加 -KeepWork 可保留"
+# ④ work\ 目录本身默认保留：里面可能有手写的本地验证脚本，且未被 git 跟踪，删掉不可恢复
+if ($IncludeWork) {
+    Add-Target "work" "目录" "本次显式要求清理整个 work\ 目录"
+}
+
+# 默认保留的位置显式列出来，避免「以为会被删」的担心（与另外两个项目保持一致）
+function Show-KeptItems {
+    if ($IncludeWork) { return }
+    if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "work"))) { return }
+    Write-Host ""
+    Write-Host "本次保留（需显式加 -IncludeWork 才会清理）：" -ForegroundColor DarkGray
+    Write-Host "  work\  目录本身与其中的手写文件（仅清理 dsh-session-current.md、*.log、*.err）" -ForegroundColor DarkGray
 }
 
 if ($targets.Count -eq 0) {
     Write-Host "没有需要清理的内容，项目目录已经很干净。" -ForegroundColor Green
+    Show-KeptItems
     exit 0
 }
 
@@ -156,6 +170,7 @@ foreach ($target in $targets) {
 Write-Host ("-" * 96)
 $totalText = if ($totalBytes -ge 1MB) { "{0:N2} MB" -f ($totalBytes / 1MB) } else { "{0:N1} KB" -f ($totalBytes / 1KB) }
 Write-Host ("共 {0} 项，合计 {1}" -f $targets.Count, $totalText)
+Show-KeptItems
 
 if (-not $Execute) {
     Write-Host ""
